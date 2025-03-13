@@ -154,8 +154,14 @@ MYSQL_RES *do_mysql_cCommand_execute_sync(VALUE self, VALUE connection, MYSQL *d
 MYSQL_RES *do_mysql_cCommand_execute_async(VALUE self, VALUE connection, MYSQL *db, VALUE query) {
   int retval;
 
-  if ((retval = mysql_ping(db)) && mysql_errno(db) == CR_SERVER_GONE_ERROR) {
-    do_mysql_full_connect(connection, db);
+  // fix mysql 8.0.44 and later with no connection retry
+  if ((retval = mysql_ping(db))) {
+    int error_code = mysql_errno(db);
+    if (error_code == CR_SERVER_GONE_ERROR || error_code == CR_SERVER_LOST) {
+      do_mysql_full_connect(connection, db);
+    } else {
+      do_mysql_raise_error(self, db, query);
+    }
   }
 
   struct timeval start;
